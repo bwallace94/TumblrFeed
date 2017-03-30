@@ -7,13 +7,39 @@
 //
 
 import UIKit
+import AFNetworking
 
-class PhotosViewController: UIViewController {
+class PhotosViewController:  UIViewController, UITableViewDataSource, UITableViewDelegate {
 
     var posts: [NSDictionary] = []
     
+    @IBOutlet weak var photosTableView: UITableView!
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        tableView.rowHeight = 240;
+        return posts.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "PhotoCell") as! PhotoCellTableViewCell
+        let post = posts[indexPath.row]
+        if let photos = post.value(forKeyPath: "photos") as? [NSDictionary] {
+            let imageUrlString = photos[0].value(forKeyPath: "original_size.url") as? String
+            if let imageUrl = URL(string: imageUrlString!) {
+                cell.photoImageView.setImageWith(imageUrl)
+            } else {
+                // URL(string: imageUrlString!) is nil. Good thing we didn't try to unwrap it!
+            }
+        } else {
+            // photos is nil. Good thing we didn't try to unwrap it!
+        }        
+        return cell   
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        photosTableView.delegate = self
+        photosTableView.dataSource = self
         let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV")
         let request = URLRequest(url: url!)
         let session = URLSession(
@@ -37,15 +63,11 @@ class PhotosViewController: UIViewController {
                         // This is where you will store the returned array of posts in your posts property
                         // self.feeds = responseFieldDictionary["posts"] as! [NSDictionary]
                         self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        self.photosTableView.reloadData()
                     }
                 }
         })
         task.resume()
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        // Do any additional setup after loading the view.
-
     }
 
     override func didReceiveMemoryWarning() {
