@@ -9,11 +9,15 @@
 import UIKit
 import AFNetworking
 
-class PhotosViewController:  UIViewController, UITableViewDataSource, UITableViewDelegate {
+class PhotosViewController:  UIViewController, UITableViewDataSource, UITableViewDelegate, UIScrollViewDelegate {
 
     var posts: [NSDictionary] = []
     
     @IBOutlet weak var photosTableView: UITableView!
+    
+    var isMoreDataLoading = false
+    
+    var offsetNum = 0
     
     func numberOfSections(in tableView: UITableView) -> Int {
         return posts.count
@@ -72,16 +76,23 @@ class PhotosViewController:  UIViewController, UITableViewDataSource, UITableVie
         return 50.0
     }
     
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        photosTableView.delegate = self
-        photosTableView.dataSource = self
-        let refreshControl = UIRefreshControl()
-        refreshControl.addTarget(self, action: #selector(refreshControlAction(_:)), for: UIControlEvents.valueChanged)
-        photosTableView.insertSubview(refreshControl, at: 0)
-
-        
-        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV")
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if (!isMoreDataLoading) {
+            // Calculate the position of one screen length before the bottom of the results
+            let scrollViewContentHeight = photosTableView.contentSize.height
+            let scrollOffsetThreshold = scrollViewContentHeight - photosTableView.bounds.size.height
+            
+            // When the user has scrolled past the threshold, start requesting
+            if(scrollView.contentOffset.y > scrollOffsetThreshold && photosTableView.isDragging) {
+                isMoreDataLoading = true
+                loadMoreData()
+            }
+        }
+    }
+    
+    func loadMoreData() {
+        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV&offset=\(offsetNum)")
+        offsetNum += 20
         let request = URLRequest(url: url!)
         let session = URLSession(
             configuration: URLSessionConfiguration.default,
@@ -96,6 +107,7 @@ class PhotosViewController:  UIViewController, UITableViewDataSource, UITableVie
                     if let responseDictionary = try! JSONSerialization.jsonObject(
                         with: data, options:[]) as? NSDictionary {
                         // print("responseDictionary: \(responseDictionary)")
+                        self.isMoreDataLoading = false
                         
                         // Recall there are two fields in the response dictionary, 'meta' and 'response'.
                         // This is how we get the 'response' field
@@ -103,12 +115,30 @@ class PhotosViewController:  UIViewController, UITableViewDataSource, UITableVie
                         
                         // This is where you will store the returned array of posts in your posts property
                         // self.feeds = responseFieldDictionary["posts"] as! [NSDictionary]
-                        self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        self.posts += responseFieldDictionary["posts"] as! [NSDictionary]
                         self.photosTableView.reloadData()
                     }
                 }
         })
         task.resume()
+
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        photosTableView.delegate = self
+        photosTableView.dataSource = self
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(refreshControlAction(_:)), for: UIControlEvents.valueChanged)
+        photosTableView.insertSubview(refreshControl, at: 0)
+        loadMoreData()
+        let tableFooterView = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 50))
+        let loadingView: UIActivityIndicatorView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        loadingView.startAnimating()
+        loadingView.center = tableFooterView.center
+        tableFooterView.addSubview(loadingView)
+        self.photosTableView.tableFooterView = tableFooterView
+        
     }
     
     // Makes a network request to get updated data
